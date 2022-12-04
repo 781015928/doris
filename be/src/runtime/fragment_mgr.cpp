@@ -70,7 +70,7 @@ std::string to_load_error_http_path(const std::string& file_name) {
     std::string logBeUrl;
 
     if (config::be_gate_way_host.length()>0){
-        logBeUrl=config::be_gate_way_host.length();
+        logBeUrl=config::be_gate_way_host;
     } else{
         logBeUrl=BackendOptions::get_localhost();
     }
