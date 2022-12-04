@@ -132,6 +132,7 @@ Status ODBCConnector::query() {
         return Status::InternalError("input and output not equal.");
     }
 
+
     // allocate memory for the binding
     for (int i = 0; i < _field_num; i++) {
         DataBinding* column_data = new DataBinding;
@@ -139,7 +140,7 @@ Status ODBCConnector::query() {
         auto type = _tuple_desc->slots()[i]->type().type;
         column_data->buffer_length = (type == TYPE_HLL || type == TYPE_CHAR ||
                                       type == TYPE_VARCHAR || type == TYPE_STRING)
-                                             ? BIG_COLUMN_SIZE_BUFFER
+                                             ? config::external_table_big_column_size_buffer
                                              : SMALL_COLUMN_SIZE_BUFFER;
         column_data->target_value_ptr = malloc(sizeof(char) * column_data->buffer_length);
         _columns_data.emplace_back(column_data);

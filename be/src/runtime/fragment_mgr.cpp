@@ -66,7 +66,16 @@ std::string to_load_error_http_path(const std::string& file_name) {
         return "";
     }
     std::stringstream url;
-    url << "http://" << BackendOptions::get_localhost() << ":" << config::webserver_port
+
+    std::string logBeUrl;
+
+    if (config::be_gate_way_host.length()>0){
+        logBeUrl=config::be_gate_way_host.length();
+    } else{
+        logBeUrl=BackendOptions::get_localhost();
+    }
+
+    url << "http://" << logBeUrl << ":" << config::webserver_port
         << "/api/_load_error_log?"
         << "file=" << file_name;
     return url.str();

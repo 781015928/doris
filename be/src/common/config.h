@@ -685,6 +685,10 @@ CONF_mInt32(max_segment_num_per_rowset, "200");
 // The connection timeout when connecting to external table such as odbc table.
 CONF_mInt32(external_table_connect_timeout_sec, "30");
 
+CONF_mInt32(external_table_big_column_size_buffer, "65535");
+
+CONF_String(be_gate_way_host, "");
+
 // Global bitmap cache capacity for aggregation cache, size in bytes
 CONF_Int64(delete_bitmap_agg_cache_capacity, "104857600");
 
