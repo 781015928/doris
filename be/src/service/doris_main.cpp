@@ -51,7 +51,6 @@
 #include "olap/storage_engine.h"
 #include "runtime/exec_env.h"
 #include "runtime/heartbeat_flags.h"
-#include "runtime/load_channel_mgr.h"
 #include "service/backend_options.h"
 #include "service/backend_service.h"
 #include "service/brpc_service.h"
@@ -320,6 +319,11 @@ int main(int argc, char** argv) {
         return -1;
     }
 
+    if (doris::config::enable_fuzzy_mode) {
+        LOG(INFO) << "enable_fuzzy_mode is true, set fuzzy configs";
+        doris::config::set_fuzzy_configs();
+    }
+
 #if !defined(__SANITIZE_ADDRESS__) && !defined(ADDRESS_SANITIZER) && !defined(LEAK_SANITIZER) && \
         !defined(THREAD_SANITIZER) && !defined(USE_JEMALLOC)
     // Change the total TCMalloc thread cache size if necessary.
@@ -494,19 +498,7 @@ int main(int argc, char** argv) {
 #if defined(LEAK_SANITIZER)
         __lsan_do_leak_check();
 #endif
-        doris::PerfCounters::refresh_proc_status();
-        doris::MemInfo::refresh_proc_meminfo();
-        doris::MemTrackerLimiter::refresh_global_counter();
-        doris::ExecEnv::GetInstance()->load_channel_mgr()->refresh_mem_tracker();
-#if !defined(ADDRESS_SANITIZER) && !defined(LEAK_SANITIZER) && !defined(THREAD_SANITIZER)
-        doris::MemInfo::refresh_allocator_mem();
-#endif
-        doris::MemInfo::refresh_proc_mem_no_allocator_cache();
-        if (doris::config::memory_debug) {
-            doris::MemTrackerLimiter::print_log_process_usage("memory_debug", false);
-        }
-        doris::MemTrackerLimiter::enable_print_log_process_usage();
-        sleep(1);
+        sleep(10);
     }
 
     http_service.stop();

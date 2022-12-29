@@ -28,6 +28,7 @@ public:
     friend class NewOlapScanner;
 
     Status prepare(RuntimeState* state) override;
+    Status collect_query_statistics(QueryStatistics* statistics) override;
 
     void set_scan_ranges(const std::vector<TScanRangeParams>& scan_ranges) override;
 
@@ -38,9 +39,10 @@ protected:
     Status _process_conjuncts() override;
     bool _is_key_column(const std::string& col_name) override;
 
-    PushDownType _should_push_down_function_filter(VectorizedFnCall* fn_call,
-                                                   VExprContext* expr_ctx, StringVal* constant_str,
-                                                   doris_udf::FunctionContext** fn_ctx) override;
+    Status _should_push_down_function_filter(VectorizedFnCall* fn_call, VExprContext* expr_ctx,
+                                             StringVal* constant_str,
+                                             doris_udf::FunctionContext** fn_ctx,
+                                             PushDownType& pdt) override;
 
     PushDownType _should_push_down_bloom_filter() override { return PushDownType::ACCEPTABLE; }
 
@@ -95,6 +97,7 @@ private:
     RuntimeProfile::Counter* _block_init_timer = nullptr;
     RuntimeProfile::Counter* _block_init_seek_timer = nullptr;
     RuntimeProfile::Counter* _block_init_seek_counter = nullptr;
+    RuntimeProfile::Counter* _block_conditions_filtered_timer = nullptr;
     RuntimeProfile::Counter* _first_read_timer = nullptr;
     RuntimeProfile::Counter* _first_read_seek_timer = nullptr;
     RuntimeProfile::Counter* _first_read_seek_counter = nullptr;

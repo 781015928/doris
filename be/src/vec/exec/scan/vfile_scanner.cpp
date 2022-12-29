@@ -209,7 +209,10 @@ Status VFileScanner::_init_src_block(Block* block) {
             data_type = DataTypeFactory::instance().create_data_type(it->second, true);
         }
         if (data_type == nullptr) {
-            return Status::NotSupported(fmt::format("Not support arrow type:{}", slot->col_name()));
+            return Status::NotSupported("Not support data type {} for column {}",
+                                        it == _name_to_col_type.end() ? slot->type().debug_string()
+                                                                      : it->second.debug_string(),
+                                        slot->col_name());
         }
         MutableColumnPtr data_column = data_type->create_column();
         _src_block.insert(
@@ -481,17 +484,17 @@ Status VFileScanner::_get_next_reader() {
             ParquetReader* parquet_reader =
                     new ParquetReader(_profile, _params, range, _state->query_options().batch_size,
                                       const_cast<cctz::time_zone*>(&_state->timezone_obj()));
-            if (_push_down_expr == nullptr && _vconjunct_ctx != nullptr) {
+            if (!_is_load && _push_down_expr == nullptr && _vconjunct_ctx != nullptr) {
                 RETURN_IF_ERROR(_vconjunct_ctx->clone(_state, &_push_down_expr));
                 _discard_conjuncts();
             }
             init_status = parquet_reader->init_reader(_file_col_names, _colname_to_value_range,
                                                       _push_down_expr);
-            if (_params.__isset.table_format_params &&
-                _params.table_format_params.table_format_type == "iceberg") {
+            if (range.__isset.table_format_params &&
+                range.table_format_params.table_format_type == "iceberg") {
                 IcebergTableReader* iceberg_reader = new IcebergTableReader(
                         (GenericReader*)parquet_reader, _profile, _state, _params);
-                iceberg_reader->init_row_filters();
+                iceberg_reader->init_row_filters(range);
                 _cur_reader.reset((GenericReader*)iceberg_reader);
             } else {
                 _cur_reader.reset((GenericReader*)parquet_reader);
@@ -530,6 +533,9 @@ Status VFileScanner::_get_next_reader() {
         if (init_status.is_end_of_file()) {
             continue;
         } else if (!init_status.ok()) {
+            if (init_status.is_not_found()) {
+                return init_status;
+            }
             return Status::InternalError("failed to init reader for file {}, err: {}", range.path,
                                          init_status.get_error_msg());
         }

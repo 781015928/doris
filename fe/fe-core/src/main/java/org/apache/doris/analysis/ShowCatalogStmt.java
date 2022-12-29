@@ -20,7 +20,6 @@ package org.apache.doris.analysis;
 import org.apache.doris.catalog.Column;
 import org.apache.doris.catalog.ScalarType;
 import org.apache.doris.common.UserException;
-import org.apache.doris.common.util.Util;
 import org.apache.doris.qe.ShowResultSetMetaData;
 
 /**
@@ -40,22 +39,28 @@ public class ShowCatalogStmt extends ShowStmt {
                     .build();
 
     private final String catalogName;
-
-    public ShowCatalogStmt(String catalogName) {
-        this.catalogName = catalogName;
-    }
+    private String pattern;
 
     public ShowCatalogStmt() {
         this.catalogName = null;
+        this.pattern = null;
+    }
+
+    public ShowCatalogStmt(String catalogName, String pattern) {
+        this.catalogName = catalogName;
+        this.pattern = pattern;
     }
 
     public String getCatalogName() {
         return catalogName;
     }
 
+    public String getPattern() {
+        return pattern;
+    }
+
     @Override
     public void analyze(Analyzer analyzer) throws UserException {
-        Util.checkCatalogEnabled();
         super.analyze(analyzer);
     }
 
@@ -69,6 +74,13 @@ public class ShowCatalogStmt extends ShowStmt {
             sb.append(catalogName);
         } else {
             sb.append(" CATALOGS");
+
+            if (pattern != null) {
+                sb.append(" LIKE ");
+                sb.append("'");
+                sb.append(pattern);
+                sb.append("'");
+            }
         }
 
         return sb.toString();

@@ -43,32 +43,32 @@ under the License.
 
 1. Internal Catalog
 
-	Doris 原有的 Database 和 Table 都将归属于 Internal Catalog。Internal Catalog 是内置的默认 Catalog，用户不可修改或删除。
+    Doris 原有的 Database 和 Table 都将归属于 Internal Catalog。Internal Catalog 是内置的默认 Catalog，用户不可修改或删除。
 
 2. External Catalog
 
-	可以通过 [CREATE CATALOG](../../sql-manual/sql-reference/Data-Definition-Statements/Create/CREATE-CATALOG.md) 命令创建一个 External Catalog。创建后，可以通过 [SHOW CATALOGS](../../sql-manual/sql-reference/Show-Statements/SHOW-CATALOGS.md) 命令查看已创建的 Catalog。
+    可以通过 [CREATE CATALOG](../../sql-manual/sql-reference/Data-Definition-Statements/Create/CREATE-CATALOG.md) 命令创建一个 External Catalog。创建后，可以通过 [SHOW CATALOGS](../../sql-manual/sql-reference/Show-Statements/SHOW-CATALOGS.md) 命令查看已创建的 Catalog。
 
 3. 切换 Catalog
 
-	用户登录 Doris 后，默认进入 Internal Catalog，因此默认的使用和之前版本并无差别，可以直接使用 `SHOW DATABASES`，`USE DB` 等命令查看和切换数据库。
-	
-	用户可以通过 [SWITCH](../../sql-manual/sql-reference/Utility-Statements/SWITCH.md) 命令切换 Catalog。如：
-	
-	```
-	SWiTCH internal;
-	SWITCH hive_catalog;
-	```
-	
-	切换后，可以直接通过 `SHOW DATABASES`，`USE DB` 等命令查看和切换对应 Catalog 中的 Database。Doris 会自动通过 Catalog 中的 Database 和 Table。用户可以像使用 Internal Catalog 一样，对 External Catalog 中的数据进行查看和访问。
-	
-	当前，Doris 只支持对 External Catalog 中的数据进行只读访问。
-	
+    用户登录 Doris 后，默认进入 Internal Catalog，因此默认的使用和之前版本并无差别，可以直接使用 `SHOW DATABASES`，`USE DB` 等命令查看和切换数据库。
+    
+    用户可以通过 [SWITCH](../../sql-manual/sql-reference/Utility-Statements/SWITCH.md) 命令切换 Catalog。如：
+    
+    ```
+    SWiTCH internal;
+    SWITCH hive_catalog;
+    ```
+    
+    切换后，可以直接通过 `SHOW DATABASES`，`USE DB` 等命令查看和切换对应 Catalog 中的 Database。Doris 会自动通过 Catalog 中的 Database 和 Table。用户可以像使用 Internal Catalog 一样，对 External Catalog 中的数据进行查看和访问。
+    
+    当前，Doris 只支持对 External Catalog 中的数据进行只读访问。
+    
 4. 删除 Catalog
 
-	External Catalog 中的 Database 和 Table 都是只读的。但是可以删除 Catalog（Internal Catalog无法删除）。可以通过 [DROP CATALOG](../../../sql-manual/sql-reference/Data-Definition-Statements/Drop/DROP-CATALOG) 命令删除一个 External Catalog。
-	
-	该操作仅会删除 Doris 中该 Catalog 的映射信息，并不会修改或变更任何外部数据目录的内容。
+    External Catalog 中的 Database 和 Table 都是只读的。但是可以删除 Catalog（Internal Catalog无法删除）。可以通过 [DROP CATALOG](../../../sql-manual/sql-reference/Data-Definition-Statements/Drop/DROP-CATALOG) 命令删除一个 External Catalog。
+    
+    该操作仅会删除 Doris 中该 Catalog 的映射信息，并不会修改或变更任何外部数据目录的内容。
 
 ## 连接示例
 
@@ -77,18 +77,69 @@ under the License.
 > 1. hive 支持 2.3.7 以上版本。
 > 2. Iceberg 目前仅支持 V1 版本，V2 版本即将支持。
 > 3. Hudi 目前仅支持 Copy On Write 表的 Snapshot Query，以及 Merge On Read 表的 Read Optimized Query。后续将支持 Incremental Query 和 Merge On Read 表的 Snapshot Query。
+> 4. 支持数据存储在腾讯 CHDFS 上的 hive 表，用法和普通 hive 一样。
 
 以下示例，用于创建一个名为 hive 的 Catalog 连接指定的 Hive MetaStore，并提供了 HDFS HA 连接属性，用于访问对应的 HDFS 中的文件。
 
+**通过 resource 创建 catalog**
+
+`1.2.0` 以后的版本推荐通过 resource 创建 catalog，多个使用场景可以复用相同的 resource。
+```sql
+CREATE RESOURCE hms_resource PROPERTIES (
+    'type'='hms',
+    'hive.metastore.uris' = 'thrift://172.21.0.1:7004',
+    'hadoop.username' = 'hive',
+    'dfs.nameservices'='your-nameservice',
+    'dfs.ha.namenodes.your-nameservice'='nn1,nn2',
+    'dfs.namenode.rpc-address.your-nameservice.nn1'='172.21.0.2:4007',
+    'dfs.namenode.rpc-address.your-nameservice.nn2'='172.21.0.3:4007',
+    'dfs.client.failover.proxy.provider.your-nameservice'='org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider'
+);
+CREATE CATALOG hive WITH RESOURCE hms_resource;
 ```
+
+**通过 properties 创建 catalog**
+
+`1.2.0` 版本通过 properties 创建 catalog，该方法将在后续版本弃用。
+```sql
 CREATE CATALOG hive PROPERTIES (
-	"type"="hms",
-	'hive.metastore.uris' = 'thrift://172.21.0.1:7004',
-	'dfs.nameservices'='service1',
-	'dfs.ha.namenodes. service1'='nn1,nn2',
-	'dfs.namenode.rpc-address.HDFS8000871.nn1'='172.21.0.2:4007',
-	'dfs.namenode.rpc-address.HDFS8000871.nn2'='172.21.0.3:4007',
-	'dfs.client.failover.proxy.provider.HDFS8000871'='org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider'
+    'type'='hms',
+    'hive.metastore.uris' = 'thrift://172.21.0.1:7004',
+    'hadoop.username' = 'hive'
+    'dfs.nameservices'='your-nameservice',
+    'dfs.ha.namenodes.your-nameservice'='nn1,nn2',
+    'dfs.namenode.rpc-address.your-nameservice.nn1'='172.21.0.2:4007',
+    'dfs.namenode.rpc-address.your-nameservice.nn2'='172.21.0.3:4007',
+    'dfs.client.failover.proxy.provider.your-nameservice'='org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider'
+);
+```
+
+如果需要连接开启了 Kerberos 认证的 Hive MetaStore，示例如下：
+
+```sql
+-- 1.2.0+ 版本
+CREATE RESOURCE hms_resource PROPERTIES (
+    'type'='hms',
+    'hive.metastore.uris' = 'thrift://172.21.0.1:7004',
+    'hive.metastore.sasl.enabled' = 'true',
+    'dfs.nameservices'='your-nameservice',
+    'dfs.namenode.rpc-address.your-nameservice.nn1'='172.21.0.2:4007',
+    'dfs.namenode.rpc-address.your-nameservice.nn2'='172.21.0.3:4007',
+    'dfs.client.failover.proxy.provider.your-nameservice'='org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider',
+    'hadoop.security.authentication' = 'kerberos',
+    'hadoop.kerberos.keytab' = '/your-keytab-filepath/your.keytab',   
+    'hadoop.kerberos.principal' = 'your-principal@YOUR.COM',
+    'yarn.resourcemanager.address' = 'your-rm-address:your-rm-port',    
+    'yarn.resourcemanager.principal' = 'your-rm-principal/_HOST@YOUR.COM'
+);
+CREATE CATALOG hive WITH RESOURCE hms_resource;
+
+-- 1.2.0 版本
+CREATE CATALOG hive PROPERTIES (
+    'type'='hms',
+    'hive.metastore.uris' = 'thrift://172.21.0.1:7004',
+    'hadoop.kerberos.xxx' = 'xxx',
+    ...
 );
 ```
 
@@ -239,11 +290,20 @@ Query OK, 1000 rows affected (0.28 sec)
 
 以下示例，用于创建一个名为 es 的 Catalog 连接指定的 ES，并关闭节点发现功能。
 
-```
+```sql
+-- 1.2.0+ 版本
+CREATE RESOURCE es_resource PROPERTIES (
+    "type"="es",
+    "elasticsearch.hosts"="http://192.168.120.12:29200",
+    "elasticsearch.nodes_discovery"="false"
+);
+CREATE CATALOG es WITH RESOURCE es_resource;
+
+-- 1.2.0 版本
 CREATE CATALOG es PROPERTIES (
-	"type"="es",
-	"elasticsearch.hosts"="http://192.168.120.12:29200",
-	"elasticsearch.nodes_discovery"="false"
+    "type"="es",
+    "elasticsearch.hosts"="http://192.168.120.12:29200",
+    "elasticsearch.nodes_discovery"="false"
 );
 ```
 
@@ -301,7 +361,7 @@ mysql> select * from test;
 **elasticsearch.hosts** | ES 地址，可以是一个或多个，也可以是 ES 的负载均衡地址
 **elasticsearch.username** | ES 用户名
 **elasticsearch.password** | 对应用户的密码信息
-**elasticsearch.doc_value_scan** | 是否开启通过 ES/Lucene 列式存储获取查询字段的值，默认为 false
+**elasticsearch.doc_value_scan** | 是否开启通过 ES/Lucene 列式存储获取查询字段的值，默认为 true
 **elasticsearch.keyword_sniff** | 是否对 ES 中字符串分词类型 text.fields 进行探测，通过 keyword 进行查询(默认为 true，设置为 false 会按照分词后的内容匹配)
 **elasticsearch.nodes_discovery** | 是否开启 ES 节点发现，默认为 true，在网络隔离环境下设置为 false，只连接指定节点
 **elasticsearch.ssl** | ES 是否开启 https 访问模式，目前在 fe/be 实现方式为信任所有
@@ -312,64 +372,72 @@ mysql> select * from test;
 
 1. 创建 hive-site.xml
 
-	创建 hive-site.xml 文件，并将其放置在 `fe/conf` 和 `be/conf` 目录下。
-	
-	```
-	<?xml version="1.0"?>
-	<configuration>
-	    <!--Set to use dlf client-->
-	    <property>
-	        <name>hive.metastore.type</name>
-	        <value>dlf</value>
-	    </property>
-	    <property>
-	        <name>dlf.catalog.endpoint</name>
-	        <value>dlf-vpc.cn-beijing.aliyuncs.com</value>
-	    </property>
-	    <property>
-	        <name>dlf.catalog.region</name>
-	        <value>cn-beijing</value>
-	    </property>
-	    <property>
-	        <name>dlf.catalog.proxyMode</name>
-	        <value>DLF_ONLY</value>
-	    </property>
-	    <property>
-	        <name>dlf.catalog.uid</name>
-	        <value>20000000000000000</value>
-	    </property>
-	    <property>
-	        <name>dlf.catalog.accessKeyId</name>
-	        <value>XXXXXXXXXXXXXXX</value>
-	    </property>
-	    <property>
-	        <name>dlf.catalog.accessKeySecret</name>
-	        <value>XXXXXXXXXXXXXXXXX</value>
-	    </property>
-	</configuration>
-	```
+    创建 hive-site.xml 文件，并将其放置在 `fe/conf` 目录下。
+    
+    ```
+    <?xml version="1.0"?>
+    <configuration>
+        <!--Set to use dlf client-->
+        <property>
+            <name>hive.metastore.type</name>
+            <value>dlf</value>
+        </property>
+        <property>
+            <name>dlf.catalog.endpoint</name>
+            <value>dlf-vpc.cn-beijing.aliyuncs.com</value>
+        </property>
+        <property>
+            <name>dlf.catalog.region</name>
+            <value>cn-beijing</value>
+        </property>
+        <property>
+            <name>dlf.catalog.proxyMode</name>
+            <value>DLF_ONLY</value>
+        </property>
+        <property>
+            <name>dlf.catalog.uid</name>
+            <value>20000000000000000</value>
+        </property>
+        <property>
+            <name>dlf.catalog.accessKeyId</name>
+            <value>XXXXXXXXXXXXXXX</value>
+        </property>
+        <property>
+            <name>dlf.catalog.accessKeySecret</name>
+            <value>XXXXXXXXXXXXXXXXX</value>
+        </property>
+    </configuration>
+    ```
 
-	* `dlf.catalog.endpoint`：DLF Endpoint，参阅：[DLF Region和Endpoint对照表](https://www.alibabacloud.com/help/zh/data-lake-formation/latest/regions-and-endpoints)
-	* `dlf.catalog.region`：DLF Region，参阅：[DLF Region和Endpoint对照表](https://www.alibabacloud.com/help/zh/data-lake-formation/latest/regions-and-endpoints)
-	* `dlf.catalog.uid`：阿里云账号。即阿里云控制台右上角个人信息的“云账号ID”。
-	* `dlf.catalog.accessKeyId`：AccessKey。可以在 [阿里云控制台](https://ram.console.aliyun.com/manage/ak) 中创建和管理。
-	* `dlf.catalog.accessKeySecret`：SecretKey。可以在 [阿里云控制台](https://ram.console.aliyun.com/manage/ak) 中创建和管理。
+    * `dlf.catalog.endpoint`：DLF Endpoint，参阅：[DLF Region和Endpoint对照表](https://www.alibabacloud.com/help/zh/data-lake-formation/latest/regions-and-endpoints)
+    * `dlf.catalog.region`：DLF Region，参阅：[DLF Region和Endpoint对照表](https://www.alibabacloud.com/help/zh/data-lake-formation/latest/regions-and-endpoints)
+    * `dlf.catalog.uid`：阿里云账号。即阿里云控制台右上角个人信息的“云账号ID”。
+    * `dlf.catalog.accessKeyId`：AccessKey。可以在 [阿里云控制台](https://ram.console.aliyun.com/manage/ak) 中创建和管理。
+    * `dlf.catalog.accessKeySecret`：SecretKey。可以在 [阿里云控制台](https://ram.console.aliyun.com/manage/ak) 中创建和管理。
 
-	其他配置项为固定值，无需改动。
+    其他配置项为固定值，无需改动。
 
 2. 重启 FE，并通过 `CREATE CATALOG` 语句创建 catalog。
 
-	```
-	CREATE CATALOG dlf PROPERTIES (
-	    "type"="hms",
-	    "hive.metastore.uris" = "thrift://127.0.0.1:9083"
-	);
-	```
-	
-	其中 `type` 固定为 `hms`。 `hive.metastore.uris` 的值随意填写即可，实际不会使用。但需要按照标准 hive metastore thrift uri 格式填写。
-	
-之后，可以像正常的 Hive MetaStore 一样，访问 DLF 下的元数据。 
+    HMS resource 会读取和解析 fe/conf/hive-site.xml
+    ```sql
+    -- 1.2.0+ 版本
+    CREATE RESOURCE dlf_resource PROPERTIES (
+        "type"="hms",
+        "hive.metastore.uris" = "thrift://127.0.0.1:9083"
+    )
+    CREATE CATALOG dlf WITH RESOURCE dlf_resource;
 
+    -- 1.2.0 版本
+    CREATE CATALOG dlf PROPERTIES (
+        "type"="hms",
+        "hive.metastore.uris" = "thrift://127.0.0.1:9083"
+    )
+    ```
+    
+    其中 `type` 固定为 `hms`。 `hive.metastore.uris` 的值随意填写即可，实际不会使用。但需要按照标准 hive metastore thrift uri 格式填写。
+    
+    之后，可以像正常的 Hive MetaStore 一样，访问 DLF 下的元数据。 
 
 ## 列类型映射
 

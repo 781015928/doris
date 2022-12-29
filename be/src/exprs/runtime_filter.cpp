@@ -17,6 +17,8 @@
 
 #include "runtime_filter.h"
 
+#include <memory>
+
 #include "common/object_pool.h"
 #include "common/status.h"
 #include "exprs/binary_predicate.h"
@@ -457,8 +459,8 @@ public:
             return Status::OK();
         }
         case RuntimeFilterType::BITMAP_FILTER: {
-            _context._bitmap_filter_func.reset(create_bitmap_filter(_column_return_type));
-            _context._bitmap_filter_func->set_not_in(params->bitmap_filter_not_in);
+            _context.bitmap_filter_func.reset(create_bitmap_filter(_column_return_type));
+            _context.bitmap_filter_func->set_not_in(params->bitmap_filter_not_in);
             return Status::OK();
         }
         default:
@@ -524,7 +526,7 @@ public:
             break;
         }
         case RuntimeFilterType::BITMAP_FILTER: {
-            _context._bitmap_filter_func->insert(data);
+            _context.bitmap_filter_func->insert(data);
             break;
         }
         default:
@@ -602,7 +604,7 @@ public:
         for (int index : rows) {
             bitmaps.push_back(&(col->get_data()[index]));
         }
-        _context._bitmap_filter_func->insert_many(bitmaps);
+        _context.bitmap_filter_func->insert_many(bitmaps);
     }
 
     RuntimeFilterType get_real_type() {
@@ -1086,6 +1088,10 @@ public:
 
     size_t get_in_filter_size() const { return _context.hybrid_set->size(); }
 
+    std::shared_ptr<BitmapFilterFuncBase> get_bitmap_filter() const {
+        return _context.bitmap_filter_func;
+    }
+
     friend class IRuntimeFilter;
 
 private:
@@ -1260,6 +1266,11 @@ void IRuntimeFilter::signal() {
     if (_wrapper->get_real_type() == RuntimeFilterType::IN_FILTER) {
         _profile->add_info_string("InFilterSize", std::to_string(_wrapper->get_in_filter_size()));
     }
+    if (_wrapper->get_real_type() == RuntimeFilterType::BITMAP_FILTER) {
+        auto bitmap_filter = _wrapper->get_bitmap_filter();
+        _profile->add_info_string("BitmapSize", std::to_string(bitmap_filter->size()));
+        _profile->add_info_string("IsNotIn", bitmap_filter->is_not_in() ? "true" : "false");
+    }
 }
 
 BloomFilterFuncBase* IRuntimeFilter::get_bloomfilter() const {
@@ -1314,8 +1325,12 @@ Status IRuntimeFilter::init_with_desc(const TRuntimeFilterDesc* desc, const TQue
         doris::vectorized::VExprContext* bitmap_target_ctx = nullptr;
         RETURN_IF_ERROR(doris::vectorized::VExpr::create_expr_tree(_pool, desc->bitmap_target_expr,
                                                                    &bitmap_target_ctx));
-        auto* target_expr = doris::vectorized::VExpr::expr_without_cast(bitmap_target_ctx->root());
-        params.column_return_type = const_cast<doris::vectorized::VExpr*>(target_expr)->type().type;
+        auto type = const_cast<vectorized::VExpr*>(
+                            vectorized::VExpr::expr_without_cast(bitmap_target_ctx->root()))
+                            ->type();
+        // The bitmap filter evaluates only integers.
+        params.column_return_type =
+                type.is_integer_type() ? type.type : bitmap_target_ctx->root()->type().type;
 
         if (desc->__isset.bitmap_filter_not_in) {
             params.bitmap_filter_not_in = desc->bitmap_filter_not_in;
@@ -1935,7 +1950,7 @@ Status RuntimePredicateWrapper::get_push_vexprs(std::vector<doris::vectorized::V
         node.__set_vector_opcode(to_in_opcode(_column_return_type));
         node.__set_is_nullable(false);
         auto bitmap_pred = _pool->add(new vectorized::VBitmapPredicate(node));
-        bitmap_pred->set_filter(_context._bitmap_filter_func);
+        bitmap_pred->set_filter(_context.bitmap_filter_func);
         auto cloned_vexpr = vprob_expr->root()->clone(_pool);
         bitmap_pred->add_child(cloned_vexpr);
         auto wrapper = _pool->add(new vectorized::VRuntimeFilterWrapper(node, bitmap_pred));

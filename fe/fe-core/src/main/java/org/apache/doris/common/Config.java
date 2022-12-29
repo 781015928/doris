@@ -118,13 +118,21 @@ public class Config extends ConfigBase {
 
     /**
      * plugin_dir:
-     *      plugin install directory
+     * plugin install directory
      */
     @ConfField
     public static String plugin_dir = System.getenv("DORIS_HOME") + "/plugins";
 
     @ConfField(mutable = true, masterOnly = true)
     public static boolean plugin_enable = true;
+
+    /**
+     * The default path to save jdbc drivers.
+     * You can put all jdbc drivers in this path, and when creating jdbc resource with only jdbc driver file name,
+     * Doris will find jars from this path.
+     */
+    @ConfField
+    public static String jdbc_drivers_dir = System.getenv("DORIS_HOME") + "/jdbc_drivers";
 
     /**
      * The default parallelism of the load execution plan
@@ -1686,25 +1694,11 @@ public class Config extends ConfigBase {
     @ConfField(mutable = false, masterOnly = true)
     public static int backend_rpc_timeout_ms = 60000; // 1 min
 
-    /**
-     * Temp config for multi catalog feature.
-     * Should be removed when this feature is ready.
-     */
-    @ConfField(mutable = true, masterOnly = true)
-    public static boolean enable_multi_catalog = false;
-
     @ConfField(mutable = true, masterOnly = false)
     public static long file_scan_node_split_size = 256 * 1024 * 1024; // 256mb
 
     @ConfField(mutable = true, masterOnly = false)
     public static long file_scan_node_split_num = 128;
-
-    /*
-     * If set to TRUE, the precision of decimal will be broaden to [1, 38].
-     * Decimalv3 of storage layer needs to be enabled first.
-     */
-    @ConfField
-    public static boolean enable_decimalv3 = false;
 
     /**
      * If set to TRUE, FE will:
@@ -1762,7 +1756,7 @@ public class Config extends ConfigBase {
      * Temp config, should be removed when new file scan node is ready.
      */
     @ConfField(mutable = true)
-    public static boolean enable_new_load_scan_node = false;
+    public static boolean enable_new_load_scan_node = true;
 
     /**
      * Max data version of backends serialize block.
@@ -1925,5 +1919,27 @@ public class Config extends ConfigBase {
      */
     @ConfField(mutable = true, masterOnly = true)
     public static int max_same_name_catalog_trash_num = 3;
+
+    /**
+     * The storage policy is still under developement.
+     * Disable it by default.
+     */
+    @ConfField(mutable = true, masterOnly = true)
+    public static boolean enable_storage_policy = false;
+
+    /**
+     * Only for branch-1.2
+     * Set to true to disable the session variable: enable_vectorized_engine.
+     * And the vec engine will be used by default, no matter the value of enable_vectorized_engine.
+     */
+    @ConfField(mutable = true, masterOnly = false)
+    public static boolean disable_enable_vectorized_engine = true;
+
+    /**
+     * This is used whether to push down function to MYSQL in external Table with query sql
+     * like odbc, jdbc for mysql table
+     */
+    @ConfField(mutable = true)
+    public static boolean enable_func_pushdown = true;
 }
 

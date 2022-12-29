@@ -163,6 +163,7 @@ Status DeltaWriter::write(Tuple* tuple) {
         return _cancel_status;
     }
 
+    _total_received_rows++;
     _mem_table->insert(tuple);
 
     // if memtable is full, push it to the flush executor,
@@ -188,6 +189,7 @@ Status DeltaWriter::write(const RowBatch* row_batch, const std::vector<int>& row
         return _cancel_status;
     }
 
+    _total_received_rows += row_idxs.size();
     for (const auto& row_idx : row_idxs) {
         _mem_table->insert(row_batch->get_row(row_idx)->get_tuple(0));
     }
@@ -216,6 +218,7 @@ Status DeltaWriter::write(const vectorized::Block* block, const std::vector<int>
         return _cancel_status;
     }
 
+    _total_received_rows += row_idxs.size();
     _mem_table->insert(block, row_idxs);
 
     if (_mem_table->need_to_agg()) {
@@ -223,7 +226,7 @@ Status DeltaWriter::write(const vectorized::Block* block, const std::vector<int>
         if (_mem_table->is_flush()) {
             auto s = _flush_memtable_async();
             _reset_mem_table();
-            if (OLAP_UNLIKELY(!s.ok())) {
+            if (UNLIKELY(!s.ok())) {
                 return s;
             }
         }
@@ -233,6 +236,7 @@ Status DeltaWriter::write(const vectorized::Block* block, const std::vector<int>
 }
 
 Status DeltaWriter::_flush_memtable_async() {
+    _merged_rows += _mem_table->merged_rows();
     return _flush_token->submit(std::move(_mem_table));
 }
 
@@ -255,7 +259,7 @@ Status DeltaWriter::flush_memtable_and_wait(bool need_wait) {
                 << ", load id: " << print_id(_req.load_id);
     auto s = _flush_memtable_async();
     _reset_mem_table();
-    if (OLAP_UNLIKELY(!s.ok())) {
+    if (UNLIKELY(!s.ok())) {
         return s;
     }
 
@@ -318,7 +322,7 @@ Status DeltaWriter::close() {
         // if this delta writer is not initialized, but close() is called.
         // which means this tablet has no data loaded, but at least one tablet
         // in same partition has data loaded.
-        // so we have to also init this DeltaWriter, so that it can create a empty rowset
+        // so we have to also init this DeltaWriter, so that it can create an empty rowset
         // for this tablet when being closed.
         RETURN_NOT_OK(init());
     }
@@ -346,10 +350,20 @@ Status DeltaWriter::close_wait(const PSlaveTabletNodes& slave_tablet_nodes,
         return _cancel_status;
     }
     // return error if previous flush failed
-    RETURN_NOT_OK(_flush_token->wait());
+    auto st = _flush_token->wait();
+    if (UNLIKELY(!st.ok())) {
+        LOG(WARNING) << "previous flush failed tablet " << _tablet->tablet_id();
+        return st;
+    }
 
     _mem_table.reset();
 
+    if (_rowset_writer->num_rows() + _merged_rows != _total_received_rows) {
+        LOG(WARNING) << "the rows number written doesn't match, rowset num rows written to file: "
+                     << _rowset_writer->num_rows() << ", merged_rows: " << _merged_rows
+                     << ", total received rows: " << _total_received_rows;
+        return Status::InternalError("rows number written by delta writer dosen't match");
+    }
     // use rowset meta manager to save meta
     _cur_rowset = _rowset_writer->build();
     if (_cur_rowset == nullptr) {
@@ -405,7 +419,7 @@ Status DeltaWriter::cancel() {
 
 Status DeltaWriter::cancel_with_status(const Status& st) {
     std::lock_guard<std::mutex> l(_lock);
-    if (!_is_init || _is_cancelled) {
+    if (_is_cancelled) {
         return Status::OK();
     }
     _mem_table.reset();
