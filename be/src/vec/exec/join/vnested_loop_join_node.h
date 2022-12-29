@@ -67,7 +67,7 @@ private:
     // Processes a block from the left child.
     //  dst_columns: left_child_row and now_process_build_block to construct a bundle column of new block
     //  now_process_build_block: right child block now to process
-    void _process_left_child_block(MutableColumns& dst_columns,
+    void _process_left_child_block(MutableBlock& mutable_block,
                                    const Block& now_process_build_block) const;
 
     template <bool SetBuildSideFlag, bool SetProbeSideFlag>
@@ -75,13 +75,22 @@ private:
                                                   bool materialize);
 
     template <bool BuildSide, bool IsSemi>
-    void _finalize_current_phase(MutableColumns& dst_columns, size_t batch_size);
+    void _finalize_current_phase(MutableBlock& mutable_block, size_t batch_size);
 
-    void _reset_with_next_probe_row(MutableColumns& dst_columns);
+    void _reset_with_next_probe_row();
 
     void _release_mem();
 
     Status get_left_side(RuntimeState* state, Block* block);
+
+    // add tuple is null flag column to Block for filter conjunct and output expr
+    void _update_additional_flags(Block* block);
+
+    void _add_tuple_is_null_column(Block* block) override;
+
+    // For mark join, if the relation from right side is empty, we should construct intermediate
+    // block with data from left side and filled with null for right side
+    void _append_left_data_with_null(MutableBlock& mutable_block) const;
 
     // List of build blocks, constructed in prepare()
     Blocks _build_blocks;
@@ -115,6 +124,7 @@ private:
     std::vector<TRuntimeFilterDesc> _runtime_filter_descs;
     std::vector<vectorized::VExprContext*> _filter_src_expr_ctxs;
     bool _is_output_left_side_only = false;
+    std::unique_ptr<VExprContext*> _vjoin_conjunct_ptr;
 
     friend struct RuntimeFilterBuild;
 };

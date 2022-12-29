@@ -653,8 +653,12 @@ public class FunctionSet<T> {
                 .put(Type.MAX_DECIMALV2_TYPE,
                         "33decimalv2_knuth_var_pop_get_valueEPN9doris_udf15FunctionContextERKNS1_9StringValE")
                 .build();
+
     public static final String HLL_HASH = "hll_hash";
     public static final String HLL_UNION = "hll_union";
+    public static final String HLL_UNION_AGG = "hll_union_agg";
+    public static final String HLL_RAW_AGG = "hll_raw_agg";
+    public static final String HLL_CARDINALITY = "hll_cardinality";
 
     private static final Map<Type, String> HLL_UPDATE_SYMBOL =
             ImmutableMap.<Type, String>builder()
@@ -1270,17 +1274,21 @@ public class FunctionSet<T> {
 
             return false;
         }
+        final ScalarType descArgType = (ScalarType) descArgTypes[0];
+        final ScalarType candicateArgType = (ScalarType) candicateArgTypes[0];
         if (functionName.equalsIgnoreCase("hex")
                 || functionName.equalsIgnoreCase("greast")
                 || functionName.equalsIgnoreCase("least")
                 || functionName.equalsIgnoreCase("lead")
                 || functionName.equalsIgnoreCase("lag")) {
-            final ScalarType descArgType = (ScalarType) descArgTypes[0];
-            final ScalarType candicateArgType = (ScalarType) candicateArgTypes[0];
             if (!descArgType.isStringType() && candicateArgType.isStringType()) {
                 // The implementations of hex for string and int are different.
                 return false;
             }
+        }
+        if ((descArgType.isDecimalV3() && candicateArgType.isDecimalV2())
+                || (descArgType.isDecimalV2() && candicateArgType.isDecimalV3())) {
+            return false;
         }
         return true;
     }
@@ -2314,14 +2322,14 @@ public class FunctionSet<T> {
                     prefix + "10sum_removeIN9doris_udf12DecimalV2ValES3_EEvPNS2_15FunctionContextERKT_PT0_",
                     null, false, true, false, true));
             addBuiltin(AggregateFunction.createBuiltin(name,
-                    Lists.<Type>newArrayList(Type.DECIMAL32), Type.DECIMAL32, Type.DECIMAL32, initNull,
+                    Lists.<Type>newArrayList(Type.DECIMAL32), ScalarType.DECIMAL128, Type.DECIMAL128, initNull,
                     prefix + "3sumIN9doris_udf12DecimalV2ValES3_EEvPNS2_15FunctionContextERKT_PT0_",
                     prefix + "3sumIN9doris_udf12DecimalV2ValES3_EEvPNS2_15FunctionContextERKT_PT0_",
                     null, null,
                     prefix + "10sum_removeIN9doris_udf12DecimalV2ValES3_EEvPNS2_15FunctionContextERKT_PT0_",
                     null, false, true, false, true));
             addBuiltin(AggregateFunction.createBuiltin(name,
-                    Lists.<Type>newArrayList(Type.DECIMAL64), Type.DECIMAL64, Type.DECIMAL64, initNull,
+                    Lists.<Type>newArrayList(Type.DECIMAL64), Type.DECIMAL128, Type.DECIMAL128, initNull,
                     prefix + "3sumIN9doris_udf12DecimalV2ValES3_EEvPNS2_15FunctionContextERKT_PT0_",
                     prefix + "3sumIN9doris_udf12DecimalV2ValES3_EEvPNS2_15FunctionContextERKT_PT0_",
                     null, null,
@@ -2681,11 +2689,11 @@ public class FunctionSet<T> {
                 "", "", "", "", "", "", "",
                 false, true, false, true));
         addBuiltin(AggregateFunction.createBuiltin("avg",
-                Lists.<Type>newArrayList(Type.DECIMAL32), Type.DECIMAL32, Type.DECIMAL32,
+                Lists.<Type>newArrayList(Type.DECIMAL32), Type.DECIMAL128, Type.DECIMAL128,
                 "", "", "", "", "", "", "",
                 false, true, false, true));
         addBuiltin(AggregateFunction.createBuiltin("avg",
-                Lists.<Type>newArrayList(Type.DECIMAL64), Type.DECIMAL64, Type.DECIMAL64,
+                Lists.<Type>newArrayList(Type.DECIMAL64), Type.DECIMAL128, Type.DECIMAL128,
                 "", "", "", "", "", "", "",
                 false, true, false, true));
         addBuiltin(AggregateFunction.createBuiltin("avg",
@@ -2771,7 +2779,7 @@ public class FunctionSet<T> {
         addBuiltin(AggregateFunction.createAnalyticBuiltin("ntile",
                 Collections.singletonList(Type.BIGINT), Type.BIGINT, Type.BIGINT, null, null, null, null, null, true));
 
-        for (Type t : Type.getSupportedTypes()) {
+        for (Type t : Type.getTrivialTypes()) {
             if (t.isNull()) {
                 continue; // NULL is handled through type promotion.
             }

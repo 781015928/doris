@@ -139,8 +139,8 @@ Status NewJsonReader::get_columns(std::unordered_map<std::string, TypeDescriptor
     return Status::OK();
 }
 
-Status NewJsonReader::get_parsered_schema(std::vector<std::string>* col_names,
-                                          std::vector<TypeDescriptor>* col_types) {
+Status NewJsonReader::get_parsed_schema(std::vector<std::string>* col_names,
+                                        std::vector<TypeDescriptor>* col_types) {
     RETURN_IF_ERROR(_get_range_params());
 
     RETURN_IF_ERROR(_open_file_reader());
@@ -767,7 +767,8 @@ Status NewJsonReader::_write_data_to_column(rapidjson::Value::ConstValueIterator
 
     // TODO: if the vexpr can support another 'slot_desc type' than 'TYPE_VARCHAR',
     // we need use a function to support these types to insert data in columns.
-    DCHECK(slot_desc->type().type == TYPE_VARCHAR);
+    DCHECK(slot_desc->type().type == TYPE_VARCHAR || slot_desc->type().type == TYPE_STRING)
+            << slot_desc->type().type << ", query id: " << print_id(_state->query_id());
     assert_cast<ColumnString*>(column_ptr)->insert_data(str_value, wbytes);
 
     *valid = true;

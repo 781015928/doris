@@ -24,6 +24,9 @@ namespace config {
 // Dir of custom config file
 CONF_String(custom_config_dir, "${DORIS_HOME}/conf");
 
+// Dir of jdbc drivers
+CONF_String(jdbc_drivers_dir, "${DORIS_HOME}/jdbc_drivers");
+
 // cluster id
 CONF_Int32(cluster_id, "-1");
 // port on which BackendService is exported
@@ -57,6 +60,29 @@ CONF_String(memory_mode, "moderate");
 // must larger than 0. and if larger than physical memory size,
 // it will be set to physical memory size.
 CONF_String(mem_limit, "80%");
+
+// Soft memory limit as a fraction of hard memory limit.
+CONF_Double(soft_mem_limit_frac, "0.9");
+
+// The maximum low water mark of the system `/proc/meminfo/MemAvailable`, Unit byte, default 1.6G,
+// actual low water mark=min(1.6G, MemTotal * 10%), avoid wasting too much memory on machines
+// with large memory larger than 16G.
+// Turn up max. On machines with more than 16G memory, more memory buffers will be reserved for Full GC.
+// Turn down max. will use as much memory as possible.
+CONF_Int64(max_sys_mem_available_low_water_mark_bytes, "1717986918");
+
+// The size of the memory that gc wants to release each time, as a percentage of the mem limit.
+CONF_mString(process_minor_gc_size, "10%");
+CONF_mString(process_full_gc_size, "20%");
+
+// If true, when the process does not exceed the soft mem limit, the query memory will not be limited;
+// when the process memory exceeds the soft mem limit, the query with the largest ratio between the currently
+// used memory and the exec_mem_limit will be canceled.
+// If false, cancel query when the memory used exceeds exec_mem_limit, same as before.
+CONF_mBool(enable_query_memroy_overcommit, "true");
+
+// The maximum time a thread waits for a full GC. Currently only query will wait for full gc.
+CONF_mInt32(thread_wait_gc_max_milliseconds, "1000");
 
 // the port heartbeat service used
 CONF_Int32(heartbeat_service_port, "9050");
@@ -269,7 +295,7 @@ CONF_mInt64(cumulative_size_based_compaction_lower_size_mbytes, "64");
 
 // cumulative compaction policy: min and max delta file's number
 CONF_mInt64(min_cumulative_compaction_num_singleton_deltas, "5");
-CONF_mInt64(max_cumulative_compaction_num_singleton_deltas, "1000");
+CONF_mInt64(max_cumulative_compaction_num_singleton_deltas, "100");
 
 // if compaction of a tablet failed, this tablet should not be chosen to
 // compaction until this interval passes.
@@ -461,8 +487,11 @@ CONF_String(buffer_pool_limit, "20%");
 // This is the percentage of buffer_pool_limit
 CONF_String(buffer_pool_clean_pages_limit, "50%");
 
-// Sleep time in seconds between memory maintenance iterations
-CONF_mInt64(memory_maintenance_sleep_time_s, "10");
+// Sleep time in milliseconds between memory maintenance iterations
+CONF_mInt64(memory_maintenance_sleep_time_ms, "500");
+
+// Sleep time in milliseconds between load channel memory refresh iterations
+CONF_mInt64(load_channel_memory_refresh_sleep_time_ms, "100");
 
 // Alignment
 CONF_Int32(memory_max_alignment, "16");
@@ -551,7 +580,7 @@ CONF_mInt64(storage_flood_stage_left_capacity_bytes, "1073741824"); // 1GB
 // number of thread for flushing memtable per store
 CONF_Int32(flush_thread_num_per_store, "6");
 // number of thread for flushing memtable per store, for high priority load task
-CONF_Int32(high_priority_flush_thread_num_per_store, "1");
+CONF_Int32(high_priority_flush_thread_num_per_store, "6");
 
 // config for tablet meta checkpoint
 CONF_mInt32(tablet_meta_checkpoint_min_new_rowsets_num, "10");
@@ -593,9 +622,6 @@ CONF_Bool(ignore_load_tablet_failure, "false");
 
 // Whether to continue to start be when load tablet from header failed.
 CONF_mBool(ignore_rowset_stale_unconsistent_delete, "false");
-
-// Soft memory limit as a fraction of hard memory limit.
-CONF_Double(soft_mem_limit_frac, "0.9");
 
 // Set max cache's size of query results, the unit is M byte
 CONF_Int32(query_cache_max_size_mb, "256");
@@ -850,6 +876,9 @@ CONF_String(jvm_max_heap_size, "1024M");
 
 // enable java udf and jdbc scannode
 CONF_Bool(enable_java_support, "true");
+
+// Set config randomly to check more issues in github workflow
+CONF_Bool(enable_fuzzy_mode, "false");
 
 #ifdef BE_TEST
 // test s3
